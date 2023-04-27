@@ -1,0 +1,16 @@
+{
+  "name": "slack-gpt-bot",
+  "version": "1.0.0",
+  "description": "Slack-GPT bot server",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rootstrap",
+  "license": "ISC",
+  "dependencies": {
+    "@slack/bolt": "^3.13.0",
+    "dotenv": "^16.0.3",
+    "openai": "^3.2.1"
+  }
+}
