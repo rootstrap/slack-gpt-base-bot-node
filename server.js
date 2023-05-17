@@ -1,6 +1,8 @@
 require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+
 const { Configuration, OpenAIApi } = require("openai");
 
 const configuration = new Configuration({
@@ -25,6 +27,40 @@ function messageRole(message) {
   }
 };
 
+
+async function executeQuery(query) {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database('db.db', (err) => {
+      if (err) {
+        reject(err);
+      }
+    });
+
+    db.all(query, [], (err, rows) => {
+      if (err) {
+        reject(err);
+      }
+
+      let result = '';
+      if (rows === undefined) {
+        result = 'No results';
+      } else if (rows.length > 0) {
+        const columns = Object.keys(rows[0]);
+        result = `${columns.join(', ')}\n`;
+        for (const row of rows) {
+          result += `${Object.values(row).join(', ')}\n`;
+        }
+      } else {
+        result = 'No results';
+      }
+      resolve(result);
+    });
+
+    db.close();
+  });
+}
+
+
 async function getConversationHistory(channel, ts, slackClient) {
   const result = await slackClient.conversations.history({
     channel,
@@ -41,6 +77,7 @@ async function getOpenAiResponse(conversationHistory) {
   const result = await openai.createChatCompletion({
     model: openaiChatModel,
     messages: messages,
+    temperature: 0.1,
   });
 
   return result.data.choices.shift().message.content;
@@ -51,8 +88,17 @@ function getOpenAiPayload(conversationHistory) {
     {
       role: 'system', content: systemPrompt,
     },
-    ...conversationHistory.map((message) => ({ role: messageRole(message), content: message.text })),
+    ...conversationHistory.map((message) => ({ role: messageRole(message), content: message.text })).slice(-1),
   ];
+}
+
+
+async function restartChat(conversationHistory, channel) {
+  conversationHistory.forEach((messageToDelete) => {
+    if (messageRole(messageToDelete) == 'assistant') {
+      app.client.chat.delete({ ts: messageToDelete.ts, channel: channel });
+    }
+  });
 }
 
 app.message(async ({ message, say, ack, client }) => {
@@ -62,8 +108,15 @@ app.message(async ({ message, say, ack, client }) => {
 
   const conversationHistory = await getConversationHistory(message.channel, message.ts, client);
 
-  responseText = await getOpenAiResponse(conversationHistory);
-  await say(responseText);
+  if (message.text.toLowerCase() == "restart") {
+    restartChat(conversationHistory, message.channel);
+  } else {
+    let query = (await getOpenAiResponse(conversationHistory)).split("```").join('').split("sql\n").join('');
+    console.log(query);
+    let result = await executeQuery(query);
+    console.log(result)
+    await say(`Query\n\`\`\`${query}\`\`\`\nOutput\n\`\`\`${result}\`\`\``);
+  }
 });
 
 (async () => {
