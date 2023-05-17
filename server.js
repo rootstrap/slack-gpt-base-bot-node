@@ -92,15 +92,6 @@ function getOpenAiPayload(conversationHistory) {
   ];
 }
 
-
-async function restartChat(conversationHistory, channel) {
-  conversationHistory.forEach((messageToDelete) => {
-    if (messageRole(messageToDelete) == 'assistant') {
-      app.client.chat.delete({ ts: messageToDelete.ts, channel: channel });
-    }
-  });
-}
-
 app.message(async ({ message, say, ack, client }) => {
   if (!message.type === 'message' || message.subtype) {
     return;
@@ -108,15 +99,11 @@ app.message(async ({ message, say, ack, client }) => {
 
   const conversationHistory = await getConversationHistory(message.channel, message.ts, client);
 
-  if (message.text.toLowerCase() == "restart") {
-    restartChat(conversationHistory, message.channel);
-  } else {
-    let query = (await getOpenAiResponse(conversationHistory)).split("```").join('').split("sql\n").join('');
-    console.log(query);
-    let result = await executeQuery(query);
-    console.log(result)
-    await say(`Query\n\`\`\`${query}\`\`\`\nOutput\n\`\`\`${result}\`\`\``);
-  }
+  let query = (await getOpenAiResponse(conversationHistory)).split("```").join('').split("sql\n").join('');
+  console.log(query);
+  let result = await executeQuery(query);
+  console.log(result)
+  await say(`Query\n\`\`\`${query}\`\`\`\nOutput\n\`\`\`${result}\`\`\``);
 });
 
 (async () => {
