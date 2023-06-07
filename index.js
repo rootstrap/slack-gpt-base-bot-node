@@ -89,8 +89,8 @@ app.post('/', async (req, res) => {
       },
       {
         role: 'user',
-        content: `${queryText}
-        Tell me which tables from the list of tables you would use to make the query.
+        content: `Tell me which tables from the list of tables you would use to make this query:
+        ${queryText}`
         `,
       },
     ],
