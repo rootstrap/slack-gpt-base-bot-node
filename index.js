@@ -1,22 +1,17 @@
-const express = require("express");
-const { Configuration, OpenAIApi } = require("openai");
-const fs = require("fs");
+const express = require('express');
+const { Configuration, OpenAIApi } = require('openai');
+const fs = require('fs');
+const { Pool } = require('pg');
+const path = require('path');
+
+const databaseMetadata = require('./databaseMetadata');
+
+require('dotenv').config();
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
-const openaiChatModel = process.env.OPENAI_CHAT_MODEL;
-const { Pool } = require("pg");
-
-// Create a new connection pool
-const pool = new Pool({
-  user: "your_user",
-  host: "localhost",
-  database: "your_database",
-  password: "your_password",
-  port: 5430, // or your PostgreSQL port number
-});
 
 const app = express();
 app.use(express.json());
@@ -28,30 +23,39 @@ app.use(
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log("SERVER IS UP ON PORT:", PORT);
+  console.log('SERVER IS UP ON PORT:', PORT);
 });
 
 async function executeQuery(query) {
   return new Promise((resolve, reject) => {
+    // Create a new connection pool
+    const pool = new Pool({
+      user: process.env.DB_USER,
+      host: 'localhost',
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASSWORD,
+      port: process.env.DB_PORT,
+    });
+
     pool.query(query, (error, results) => {
       if (error) {
-        console.error("Error executing query", error);
+        console.error('Error executing query', error);
         reject(err);
       }
 
-      let result = "";
+      let result = '';
 
       if (results === undefined) {
-        result = "No results";
+        result = 'No results';
       } else if (results.rowCount > 0) {
         const { rows } = results;
         const columns = Object.keys(rows[0]);
-        result = `${columns.join(", ")}\n`;
+        result = `${columns.join(', ')}\n`;
         for (const row of rows) {
-          result += `${Object.values(row).join(", ")}\n`;
+          result += `${Object.values(row).join(', ')}\n`;
         }
       } else {
-        result = "No results";
+        result = 'No results';
       }
 
       resolve(result);
@@ -62,7 +66,40 @@ async function executeQuery(query) {
   });
 }
 
-app.get("/", async (req, res) => {
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', '/index.html'));
+});
+
+app.post('/', async (req, res) => {
+  const queryText = req.body.userQuery;
+  const tables = await databaseMetadata();
+
+  const completion = await openai.createChatCompletion({
+    temperature: 0.1,
+    model: process.env.OPENAI_CHAT_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a helpful assistant that knows a lot about SQL language and manages a database.
+          You are using Postgres 12.
+          The database tables are: ${tables}
+          Please answer with each name between the char \` .
+          If you think there is a table name that can be used but you aren't sure, please include it anyways.
+        `,
+      },
+      {
+        role: 'user',
+        content: `${queryText}
+        Tell me which tables from the list of tables you would use to make the query.
+        `,
+      },
+    ],
+  });
+
+  const answer = completion.data.choices[0].message.content;
+  console.log('answer', answer);
+  // pick up from here to get the query from OpenAI
+
   const query = `SELECT
   people.id,
   people.first_name || ' ' || people.last_name AS full_name,
@@ -90,11 +127,11 @@ ORDER BY
   const dbResponse = await executeQuery(query);
 
   const result = await openai.createChatCompletion({
-    temperature: 1.2,
-    model: openaiChatModel,
+    temperature: 0.1,
+    model: process.env.OPENAI_CHAT_MODEL,
     messages: [
       {
-        role: "system",
+        role: 'system',
         content: `You will receive a query and the result of executing the query on a database.
                   You should answer with the result of the query.
                   You should only answer with the response, without explanation.
@@ -112,17 +149,17 @@ ORDER BY
   });
 
   const response = result.data.choices.shift().message.content;
-  console.log("QUERY");
+  console.log('QUERY');
   console.log(query);
-  console.log("");
-  console.log("----------------");
+  console.log('');
+  console.log('----------------');
 
-  console.log("DB RESPONSE");
+  console.log('DB RESPONSE');
   console.log(dbResponse);
-  console.log("");
-  console.log("----------------");
+  console.log('');
+  console.log('----------------');
 
-  console.log("AI RESULT");
+  console.log('AI RESULT');
   console.log(response);
 
   res.send(response);
