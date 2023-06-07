@@ -84,6 +84,7 @@ app.post('/', async (req, res) => {
           You are using Postgres 12.
           The database tables are: ${tables}
           Please answer with each name between the char \` .
+          Answer only with a comma separated list of tables, without any explanation. Example response: "`users`, `products`"
           If you think there is a table name that can be used but you aren't sure, please include it anyways.
         `,
       },
