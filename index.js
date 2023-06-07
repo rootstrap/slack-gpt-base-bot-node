@@ -3,11 +3,20 @@ const { Configuration, OpenAIApi } = require("openai");
 const fs = require("fs");
 
 const configuration = new Configuration({
-  apiKey: "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",
+  apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
 const openaiChatModel = process.env.OPENAI_CHAT_MODEL;
-const systemPrompt = fs.readFileSync("./forecast.txt", "utf8");
+const { Pool } = require("pg");
+
+// Create a new connection pool
+const pool = new Pool({
+  user: "your_user",
+  host: "localhost",
+  database: "your_database",
+  password: "your_password",
+  port: 5430, // or your PostgreSQL port number
+});
 
 const app = express();
 app.use(express.json());
@@ -22,32 +31,99 @@ app.listen(PORT, () => {
   console.log("SERVER IS UP ON PORT:", PORT);
 });
 
+async function executeQuery(query) {
+  return new Promise((resolve, reject) => {
+    pool.query(query, (error, results) => {
+      if (error) {
+        console.error("Error executing query", error);
+        reject(err);
+      }
+
+      let result = "";
+
+      if (results === undefined) {
+        result = "No results";
+      } else if (results.rowCount > 0) {
+        const { rows } = results;
+        const columns = Object.keys(rows[0]);
+        result = `${columns.join(", ")}\n`;
+        for (const row of rows) {
+          result += `${Object.values(row).join(", ")}\n`;
+        }
+      } else {
+        result = "No results";
+      }
+
+      resolve(result);
+    });
+
+    // Close the connection pool when finished
+    pool.end();
+  });
+}
+
 app.get("/", async (req, res) => {
+  const query = `SELECT
+  people.id,
+  people.first_name || ' ' || people.last_name AS full_name,
+  departments.name AS department,
+  locations.city || ', ' || locations.country AS location,
+  time_offs.start_date,
+  time_offs.end_date,
+  time_offs.time_type
+FROM
+  people
+  JOIN time_offs ON people.id = time_offs.person_id
+  JOIN departments ON people.department_id = departments.id
+  JOIN locations ON people.location_id = locations.id
+WHERE
+  time_offs.start_date >= '2023-06-11'
+  AND time_offs.start_date <= '2023-06-17'
+  AND time_offs.status = 'approved'
+  AND people.ignored = false
+  AND people.discarded_at IS NULL
+ORDER BY
+  people.first_name,
+  people.last_name,
+  time_offs.start_date;`;
+
+  const dbResponse = await executeQuery(query);
+
   const result = await openai.createChatCompletion({
-    model: "gpt-3.5-turbo",
+    temperature: 1.2,
+    model: openaiChatModel,
     messages: [
       {
         role: "system",
-        content: systemPrompt,
+        content: `You will receive a query and the result of executing the query on a database.
+                  You should answer with the result of the query.
+                  You should only answer with the response, without explanation.
+                  The preferred type of visualization should be visual (charts) but if the data is not representative using charts,
+                  you should write a text with the response.
+                  For showing the result I want a nice HTML with colors and style. If the result has many rows, I want a table with style and nice colours.
+                  Also, if you could make a chart with the result, do it in order to show it in a web page.
+                  -----------------------------------------
+                  Query: ${query}
+                  -----------------------------------------
+                  Result: ${dbResponse}
+                  `,
       },
-      {
-        role: "user",
-        content: "I want to know the top 10 people that had more work hours.",
-      },
-      //   {
-      //     role: "assistant",
-      //     content:
-      //       "Sure! Here are the table definitions for the database:\n\n```\nCREATE TABLE Artist (\n    artist_id SERIAL PRIMARY KEY,\n    name VARCHAR(255) UNIQUE\n);\n\nCREATE TABLE Album (\n    album_id SERIAL PRIMARY KEY,\n    title VARCHAR(255),\n    artist_id INTEGER REFERENCES Artist (artist_id)\n);\n\nCREATE TABLE Genre (\n    genre_id SERIAL PRIMARY KEY,\n    name VARCHAR(255)\n);\n\nCREATE TABLE MediaType (\n    media_type_id SERIAL PRIMARY KEY,\n    name VARCHAR(255)\n);\n\nCREATE TABLE Track (\n    track_id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    album_id INTEGER REFERENCES Album (album_id),\n    genre_id INTEGER REFERENCES Genre (genre_id),\n    media_type_id INTEGER REFERENCES MediaType (media_type_id),\n    unit_price DECIMAL(10, 2)\n);\n\nCREATE TABLE Playlist (\n    playlist_id SERIAL PRIMARY KEY,\n    name VARCHAR(255)\n);\n\nCREATE TABLE PlaylistTrack (\n    playlist_id INTEGER REFERENCES Playlist (playlist_id),\n    track_id INTEGER REFERENCES Track (track_id),\n    PRIMARY KEY (playlist_id, track_id)\n);\n\nCREATE TABLE Employee (\n    employee_id SERIAL PRIMARY KEY,\n    first_name VARCHAR(255),\n    last_name VARCHAR(255),\n    address VARCHAR(255),\n    email VARCHAR(255),\n    city VARCHAR(255),\n    state VARCHAR(255),\n    phone VARCHAR(255),\n    reports_to INTEGER REFERENCES Employee (employee_id)\n);\n\nCREATE TABLE Customer (\n    customer_id SERIAL PRIMARY KEY,\n    first_name VARCHAR(255),\n    last_name VARCHAR(255),\n    phone VARCHAR(255),\n    email VARCHAR(255)\n);\n\nCREATE TABLE Invoice (\n    invoice_id SERIAL PRIMARY KEY,\n    billing_address VARCHAR(255),\n    total DECIMAL(10, 2),\n    customer_id INTEGER REFERENCES Customer (customer_id)\n);\n\nCREATE TABLE InvoiceLine (\n    invoice_line_id SERIAL PRIMARY KEY,\n    unit_price DECIMAL(10, 2),\n    quantity INTEGER,\n    track_id INTEGER REFERENCES Track (track_id),\n    invoice_id INTEGER REFERENCES Invoice (invoice_id)\n);\n```\n\nLet me know if you need further explanations!",
-      //   },
-      //   {
-      //     role: "user",
-      //     content:
-      //       "I want to know the first name and lastname of the client who bought the most tracks, also how much he spent. Please write the Postgres SQL query",
-      //   },
     ],
   });
 
   const response = result.data.choices.shift().message.content;
+  console.log("QUERY");
+  console.log(query);
+  console.log("");
+  console.log("----------------");
+
+  console.log("DB RESPONSE");
+  console.log(dbResponse);
+  console.log("");
+  console.log("----------------");
+
+  console.log("AI RESULT");
   console.log(response);
+
   res.send(response);
 });
