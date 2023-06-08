@@ -44,13 +44,7 @@ async function executeQuery(query) {
 async function getTableDefinition(tableNames) {
   const tables = tableNames.replaceAll("'", "").replaceAll(" ", "").split(",");
 
-  const client = new Client({
-    host: "localhost",
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-  });
+  const client = new Client();
 
   await client.connect();
   const query = `
