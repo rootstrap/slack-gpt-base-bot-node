@@ -1,12 +1,12 @@
-const express = require('express');
-const { Configuration, OpenAIApi } = require('openai');
-const fs = require('fs');
-const { Pool } = require('pg');
-const path = require('path');
+const express = require("express");
+const { Configuration, OpenAIApi } = require("openai");
+const fs = require("fs");
+const { Pool } = require("pg");
+const path = require("path");
 
-const databaseMetadata = require('./databaseMetadata');
+const [databaseMetadata, getTableDefinition] = require("./databaseMetadata");
 
-require('dotenv').config();
+require("dotenv").config();
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -21,9 +21,9 @@ app.use(
   })
 );
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log('SERVER IS UP ON PORT:', PORT);
+  console.log("SERVER IS UP ON PORT:", PORT);
 });
 
 async function executeQuery(query) {
@@ -31,7 +31,7 @@ async function executeQuery(query) {
     // Create a new connection pool
     const pool = new Pool({
       user: process.env.DB_USER,
-      host: 'localhost',
+      host: "localhost",
       database: process.env.DB_NAME,
       password: process.env.DB_PASSWORD,
       port: process.env.DB_PORT,
@@ -39,23 +39,23 @@ async function executeQuery(query) {
 
     pool.query(query, (error, results) => {
       if (error) {
-        console.error('Error executing query', error);
+        console.error("Error executing query", error);
         reject(err);
       }
 
-      let result = '';
+      let result = "";
 
       if (results === undefined) {
-        result = 'No results';
+        result = "No results";
       } else if (results.rowCount > 0) {
         const { rows } = results;
         const columns = Object.keys(rows[0]);
-        result = `${columns.join(', ')}\n`;
+        result = `${columns.join(", ")}\n`;
         for (const row of rows) {
-          result += `${Object.values(row).join(', ')}\n`;
+          result += `${Object.values(row).join(", ")}\n`;
         }
       } else {
-        result = 'No results';
+        result = "No results";
       }
 
       resolve(result);
@@ -66,11 +66,12 @@ async function executeQuery(query) {
   });
 }
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'views', '/index.html'));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "views", "/index.html"));
 });
+const getTablesDefinition = (tableNames) => {};
 
-app.post('/', async (req, res) => {
+app.post("/", async (req, res) => {
   const queryText = req.body.userQuery;
   const tables = await databaseMetadata();
 
@@ -79,25 +80,27 @@ app.post('/', async (req, res) => {
     model: process.env.OPENAI_CHAT_MODEL,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: `You are a helpful assistant that knows a lot about SQL language and manages a database.
           You are using Postgres 12.
           The database tables are: ${tables}
-          Please answer with each name between the char \` .
-          Answer only with a comma separated list of tables, without any explanation. Example response: "\`users\`, \`products\`"
+          
+          Answer only with a comma separated list of tables, without any explanation. Example response: "\'users\', \'products\'"
           If you think there is a table name that can be used but you aren't sure, please include it anyways.
         `,
       },
       {
-        role: 'user',
+        role: "user",
         content: `Tell me which tables from the list of tables you would use to make this query:
           ${queryText}`,
       },
     ],
   });
 
-  const answer = completion.data.choices[0].message.content;
-  console.log('answer', answer);
+  const tablesAnswer = completion.data.choices[0].message.content;
+  console.log("answer", tablesAnswer);
+
+  getTableDefinition(tablesAnswer);
   // pick up from here to get the query from OpenAI
 
   const query = `SELECT
@@ -131,7 +134,7 @@ ORDER BY
     model: process.env.OPENAI_CHAT_MODEL,
     messages: [
       {
-        role: 'system',
+        role: "system",
         content: `You will receive a query and the result of executing the query on a database.
                   You should answer with the result of the query.
                   You should only answer with the response, without explanation.
@@ -149,18 +152,18 @@ ORDER BY
   });
 
   const response = result.data.choices.shift().message.content;
-  console.log('QUERY');
-  console.log(query);
-  console.log('');
-  console.log('----------------');
+  // console.log("QUERY");
+  // console.log(query);
+  // console.log("");
+  // console.log("----------------");
 
-  console.log('DB RESPONSE');
-  console.log(dbResponse);
-  console.log('');
-  console.log('----------------');
+  // console.log("DB RESPONSE");
+  // console.log(dbResponse);
+  // console.log("");
+  // console.log("----------------");
 
-  console.log('AI RESULT');
-  console.log(response);
+  // console.log("AI RESULT");
+  // console.log(response);
 
   res.send(response);
 });
