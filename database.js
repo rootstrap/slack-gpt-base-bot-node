@@ -1,20 +1,44 @@
-const { Client } = require("pg");
+const { Pool, Client } = require("pg");
 
 async function databaseMetadata() {
-  const client = new Client({
-    host: "localhost",
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-  });
+  const pool = new Pool();
 
-  await client.connect();
-
-  const res = await client.query(
+  const res = await pool.query(
     `SELECT relname FROM pg_class WHERE relkind='r' AND relname !~ '^(pg_|sql_)';`
   );
   return res.rows.map((row) => row.relname);
+}
+
+async function executeQuery(query) {
+  return new Promise((resolve, reject) => {
+    const pool = new Pool();
+
+    pool.query(query, (error, results) => {
+      if (error) {
+        console.error("Error executing query", error);
+        reject(err);
+      }
+
+      let result = "";
+
+      if (results === undefined) {
+        result = "No results";
+      } else if (results.rowCount > 0) {
+        const { rows } = results;
+        const columns = Object.keys(rows[0]);
+        result = `${columns.join(", ")}\n`;
+        for (const row of rows) {
+          result += `${Object.values(row).join(", ")}\n`;
+        }
+      } else {
+        result = "No results";
+      }
+
+      resolve(result);
+    });
+
+    pool.end();
+  });
 }
 
 async function getTableDefinition(tableNames) {
@@ -48,4 +72,4 @@ async function getTableDefinition(tableNames) {
   return result;
 }
 
-module.exports = [databaseMetadata, getTableDefinition];
+module.exports = { databaseMetadata, executeQuery, getTableDefinition };

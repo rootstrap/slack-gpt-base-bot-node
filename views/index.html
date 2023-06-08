@@ -2,10 +2,82 @@
 <html lang="en">
   <head>
     <title>Query Form</title>
+
+    <style>
+      html {
+        -ms-text-size-adjust: 100%;
+        -webkit-text-size-adjust: 100%;
+        font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS",
+          sans-serif;
+      }
+
+      body {
+        background-color: rgb(27, 27, 27);
+      }
+      h1,
+      h2 {
+        text-align: center;
+        font-size: 48px;
+        font-weight: 600;
+        line-height: 120%;
+        position: relative;
+        color: white;
+      }
+      h2 {
+        font-size: 36px;
+        font-weight: 400;
+      }
+      form {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        margin-top: 15vh;
+      }
+      label {
+        font-size: 24px;
+        font-weight: 400;
+        color: white;
+      }
+      textarea {
+        border-radius: 10px;
+        border-color: white;
+        border-width: 1.5px;
+        outline: none;
+        padding: 5px;
+        width: 80vw;
+        background-color: transparent;
+        color: white;
+        font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS",
+          sans-serif;
+        font-weight: 200;
+        font-size: 20px;
+      }
+      input {
+        background-color: #e6a701;
+        border-color: #e6a701;
+        color: #061012;
+        text-align: center;
+        font-size: 15px;
+        font-family: "Gill Sans", "Gill Sans MT", Calibri, "Trebuchet MS",
+          sans-serif;
+        padding: 10px 20px;
+        border-radius: 10px;
+      }
+      .margin-top-5 {
+        margin-top: 5vh;
+      }
+      .margin-top-10 {
+        margin-top: 10vh;
+      }
+    </style>
   </head>
   <body>
+    <h1 class="margin-top-10">Welcome to this query consulting program</h1>
+    <h2 class="margin-top-5">
+      Here you could make queries using natural language to a Postgres data base
+    </h2>
     <form action="/" method="POST">
-      <label for="query">Enter your query:</label><br />
+      <label for="query">Enter your query</label><br />
       <textarea id="query " name="userQuery" rows="4" cols="50"></textarea
       ><br />
       <input type="submit" value="Submit" />
