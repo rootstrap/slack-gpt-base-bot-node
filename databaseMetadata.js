@@ -18,11 +18,7 @@ async function databaseMetadata() {
 }
 
 async function getTableDefinition(tableNames) {
-  const tables = tableNames.replaceAll("'", "").split(",");
-  console.log(
-    "🚀 ~ file: databaseMetadata.js:22 ~ getTableDefinition ~ tables:",
-    tables
-  );
+  const tables = tableNames.replaceAll("'", "").replaceAll(" ", "").split(",");
 
   const client = new Client({
     host: "localhost",
@@ -40,19 +36,7 @@ async function getTableDefinition(tableNames) {
     `;
   const results = await client.query(query);
   const result = tables.reduce((previousValues, tableName) => {
-    console.log(
-      "🚀 ~ file: databaseMetadata.js:43 ~ result ~ tableName:",
-      tableName
-    );
     const fields = results.rows.filter((row) => row.table_name == tableName);
-    console.log(
-      "🚀 ~ file: databaseMetadata.js:44 ~ result ~ results.rows:",
-      results.rows
-    );
-    console.log(
-      "🚀 ~ file: databaseMetadata.js:52 ~ getTableDefinition ~ results:",
-      fields
-    );
 
     const fieldsResult = fields.reduce(
       (previousString, row) =>
@@ -61,7 +45,7 @@ async function getTableDefinition(tableNames) {
     );
     return previousValues.concat(`\n${tableName}\n\n ${fieldsResult}`);
   }, "");
-  console.log("🚀 ~ file: databaseMetadata.js:59 ~ result ~ result:", result);
+  return result;
 }
 
 module.exports = [databaseMetadata, getTableDefinition];

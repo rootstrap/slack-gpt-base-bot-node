@@ -100,34 +100,61 @@ app.post("/", async (req, res) => {
   const tablesAnswer = completion.data.choices[0].message.content;
   console.log("answer", tablesAnswer);
 
-  getTableDefinition(tablesAnswer);
+  const tablesDefinition = await getTableDefinition(tablesAnswer);
+  console.log(
+    "🚀 ~ file: index.js:104 ~ app.post ~ tablesDefinition:",
+    tablesDefinition
+  );
+
+  const completionQuery = await openai.createChatCompletion({
+    temperature: 0.1,
+    model: process.env.OPENAI_CHAT_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: `You are a helpful assistant that knows a lot about SQL language and manages a database. "
+        "You are using Postgres 12. "
+        "The database tables are: ${tablesDefinition}
+        `,
+      },
+      {
+        role: "user",
+        content: `${queryText} Please tell me only the SQL query for that query and don't wrap it into a code block. I'm using Postgres 12`,
+      },
+    ],
+  });
+
+  const query = completionQuery.data.choices[0].message["content"];
+  console.log("🚀 ~ file: index.js:130 ~ app.post ~ query:", query);
+
   // pick up from here to get the query from OpenAI
 
-  const query = `SELECT
-  people.id,
-  people.first_name || ' ' || people.last_name AS full_name,
-  departments.name AS department,
-  locations.city || ', ' || locations.country AS location,
-  time_offs.start_date,
-  time_offs.end_date,
-  time_offs.time_type
-FROM
-  people
-  JOIN time_offs ON people.id = time_offs.person_id
-  JOIN departments ON people.department_id = departments.id
-  JOIN locations ON people.location_id = locations.id
-WHERE
-  time_offs.start_date >= '2023-06-11'
-  AND time_offs.start_date <= '2023-06-17'
-  AND time_offs.status = 'approved'
-  AND people.ignored = false
-  AND people.discarded_at IS NULL
-ORDER BY
-  people.first_name,
-  people.last_name,
-  time_offs.start_date;`;
+  //   const query = `SELECT
+  //   people.id,
+  //   people.first_name || ' ' || people.last_name AS full_name,
+  //   departments.name AS department,
+  //   locations.city || ', ' || locations.country AS location,
+  //   time_offs.start_date,
+  //   time_offs.end_date,
+  //   time_offs.time_type
+  // FROM
+  //   people
+  //   JOIN time_offs ON people.id = time_offs.person_id
+  //   JOIN departments ON people.department_id = departments.id
+  //   JOIN locations ON people.location_id = locations.id
+  // WHERE
+  //   time_offs.start_date >= '2023-06-11'
+  //   AND time_offs.start_date <= '2023-06-17'
+  //   AND time_offs.status = 'approved'
+  //   AND people.ignored = false
+  //   AND people.discarded_at IS NULL
+  // ORDER BY
+  //   people.first_name,
+  //   people.last_name,
+  //   time_offs.start_date;`;
 
   const dbResponse = await executeQuery(query);
+  console.log("🚀 ~ file: index.js:157 ~ app.post ~ dbResponse:", dbResponse);
 
   const result = await openai.createChatCompletion({
     temperature: 0.1,
