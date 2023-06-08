@@ -1,10 +1,12 @@
 const express = require("express");
 const { Configuration, OpenAIApi } = require("openai");
-const fs = require("fs");
-const { Pool } = require("pg");
 const path = require("path");
 
-const { databaseMetadata, executeQuery } = require("./database");
+const {
+  databaseMetadata,
+  executeQuery,
+  getTableDefinition,
+} = require("./database");
 
 require("dotenv").config();
 
@@ -21,7 +23,7 @@ app.use(
   })
 );
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("SERVER IS UP ON PORT:", PORT);
 });
@@ -43,8 +45,8 @@ app.post("/", async (req, res) => {
         content: `You are a helpful assistant that knows a lot about SQL language and manages a database.
           You are using Postgres 12.
           The database tables are: ${tables}
-          Please answer with each name between the char \` .
-          Answer only with a comma separated list of tables, without any explanation. Example response: "\`users\`, \`products\`"
+          
+          Answer only with a comma separated list of tables, without any explanation. Example response: "\'users\', \'products\'"
           If you think there is a table name that can be used but you aren't sure, please include it anyways.
         `,
       },
@@ -56,18 +58,38 @@ app.post("/", async (req, res) => {
     ],
   });
 
-  const answer = completion.data.choices[0].message.content;
-  console.log("answer", answer);
-  // pick up from here to get the query from OpenAI
+  const tablesAnswer = completion.data.choices[0].message.content;
+  console.log("answer", tablesAnswer);
 
-  const query = "SELECT * FROM people ORDER BY work_hours DESC LIMIT 10;";
+  const tablesDefinition = await getTableDefinition(tablesAnswer);
+  console.log(
+    "🚀 ~ file: index.js:104 ~ app.post ~ tablesDefinition:",
+    tablesDefinition
+  );
+
+  const completionQuery = await openai.createChatCompletion({
+    temperature: 0.1,
+    model: process.env.OPENAI_CHAT_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: `You are a helpful assistant that knows a lot about SQL language and manages a database. "
+        "You are using Postgres 12. "
+        "The database tables are: ${tablesDefinition}
+        `,
+      },
+      {
+        role: "user",
+        content: `${queryText} Please tell me only the SQL query for that query and don't wrap it into a code block. I'm using Postgres 12`,
+      },
+    ],
+  });
+
+  const query = completionQuery.data.choices[0].message["content"];
+  console.log("🚀 ~ file: index.js:90 ~ app.post ~ query:", query);
 
   const dbResponse = await executeQuery(query);
-  console.log("----------------");
-  console.log("DB RESPONSE");
-  console.log(dbResponse);
-  console.log("");
-  console.log("----------------");
+  console.log("🚀 ~ file: index.js:93 ~ app.post ~ dbResponse:", dbResponse);
 
   const result = await openai.createChatCompletion({
     temperature: 0.1,

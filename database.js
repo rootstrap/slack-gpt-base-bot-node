@@ -1,4 +1,4 @@
-const { Pool } = require("pg");
+const { Pool, Client } = require("pg");
 
 async function databaseMetadata() {
   const pool = new Pool();
@@ -41,4 +41,29 @@ async function executeQuery(query) {
   });
 }
 
-module.exports = { databaseMetadata, executeQuery };
+async function getTableDefinition(tableNames) {
+  const tables = tableNames.replaceAll("'", "").replaceAll(" ", "").split(",");
+
+  const client = new Client();
+
+  await client.connect();
+  const query = `
+        SELECT table_name, column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name IN (${tableNames});
+    `;
+  const results = await client.query(query);
+  const result = tables.reduce((previousValues, tableName) => {
+    const fields = results.rows.filter((row) => row.table_name == tableName);
+
+    const fieldsResult = fields.reduce(
+      (previousString, row) =>
+        previousString.concat(`${row.column_name}: ${row.data_type}\n`),
+      ""
+    );
+    return previousValues.concat(`\n${tableName}\n\n ${fieldsResult}`);
+  }, "");
+  return result;
+}
+
+module.exports = { databaseMetadata, executeQuery, getTableDefinition };
