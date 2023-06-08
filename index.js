@@ -125,7 +125,7 @@ app.post("/", async (req, res) => {
   console.log(response);
   const responseWithSQL = response.replace(
     "<body>",
-    `<body>     <h3>SQL Query</h3>
+    `<body>     <h1>SQL Query</h1>
 <pre>${query}</pre>`
   );
 
