@@ -123,6 +123,11 @@ app.post("/", async (req, res) => {
 
   console.log("AI RESULT");
   console.log(response);
+  const responseWithSQL = response.replace(
+    "<body>",
+    `<body>     <h3>SQL Query</h3>
+<pre>${query}</pre>`
+  );
 
-  res.send(response);
+  res.send(responseWithSQL);
 });
