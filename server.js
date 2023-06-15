@@ -1,14 +1,11 @@
 require('dotenv').config();
-const http = require('http');
-const fs = require('fs');
-const { Configuration, OpenAIApi } = require("openai");
 
+const { Configuration, OpenAIApi } = require("openai");
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
 const openai = new OpenAIApi(configuration);
 const openaiChatModel = process.env.OPENAI_CHAT_MODEL;
-const systemPrompt = fs.readFileSync('./agent.txt', 'utf8');
 
 const { App } = require('@slack/bolt');
 
@@ -17,42 +14,34 @@ const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
 });
 
-function messageRole(message) {
-  if (!message.bot_id) {
-    return 'user';
-  } else {
-    return 'assistant';
-  }
-};
+const functions = require('./functions');
 
-async function getConversationHistory(channel, ts, slackClient) {
-  const result = await slackClient.conversations.history({
-    channel,
-    latest: ts,
-    inclusive: true,
-  });
+var history = [];
 
-  return result.messages.reverse();
-}
-
-async function getOpenAiResponse(conversationHistory) {
-  const messages = getOpenAiPayload(conversationHistory);
-
-  const result = await openai.createChatCompletion({
+async function getOpenAiResponse() {
+  const payload = {
     model: openaiChatModel,
-    messages: messages,
-  });
-
-  return result.data.choices.shift().message.content;
+    messages: [
+      {
+        role: 'system', content: 'You are a chat assistant that helps people with their to-do list.',
+      },
+      ...history,
+    ],
+    functions: functions.map((func) => func.schema),
+  };
+  console.log("payload")
+  console.log(payload)
+  const result = await openai.createChatCompletion(payload);
+  console.log("result")
+  console.log(result)
+  const response = result.data.choices.shift().message;
+  return response;
 }
 
-function getOpenAiPayload(conversationHistory) {
-  return [
-    {
-      role: 'system', content: systemPrompt,
-    },
-    ...conversationHistory.map((message) => ({ role: messageRole(message), content: message.text })),
-  ];
+function callFunction(function_call) {
+  const func = functions.find((func) => func.schema.name === function_call.name);
+  const args = JSON.parse(function_call.arguments);
+  return func.function(args);
 }
 
 app.message(async ({ message, say, ack, client }) => {
@@ -60,9 +49,18 @@ app.message(async ({ message, say, ack, client }) => {
     return;
   }
 
-  const conversationHistory = await getConversationHistory(message.channel, message.ts, client);
+  history.push({ role: "user", content: message.text });
 
-  responseText = await getOpenAiResponse(conversationHistory);
+  let responseText = "";
+  const response = await getOpenAiResponse();
+  if (response.function_call) {
+    responseText = callFunction(response.function_call);
+    history.push({ role: "function", name: response.function_call.name, content: responseText });
+  } else {
+    responseText = response.content;
+    history.push({ role: "assistant", content: responseText });
+  }
+
   await say(responseText);
 });
 
