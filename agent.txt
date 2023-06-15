@@ -1,2 +1,0 @@
-Your name is "GPT Agent" and you are a helpful assistant.
-Your chat environment is Slack.

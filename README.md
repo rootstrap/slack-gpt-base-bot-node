@@ -27,10 +27,6 @@ The conversation history sent to the OpenAI chat API includes both user messages
    OPENAI_API_KEY=your_openai_api_key
    OPENAI_CHAT_MODEL=your_openai_chat_model
    ```
-4. Create a `agent.txt` file in the root directory of the project and add the prompt for the OpenAI chat model. This prompt will be sent as the first message to the chat API for each conversation.
-   ```
-   The prompt for your OpenAI chat model.
-   ```
 
 ## Usage
 
