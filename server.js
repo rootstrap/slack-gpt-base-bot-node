@@ -29,13 +29,9 @@ async function getOpenAiResponse() {
     ],
     functions: functions.map((func) => func.schema),
   };
-  console.log("payload")
-  console.log(payload)
+
   const result = await openai.createChatCompletion(payload);
-  console.log("result")
-  console.log(result)
-  const response = result.data.choices.shift().message;
-  return response;
+  return result.data.choices.shift().message;
 }
 
 function callFunction(function_call) {
